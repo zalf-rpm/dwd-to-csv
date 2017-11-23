@@ -34,17 +34,20 @@ print sys.path
 from netCDF4 import Dataset
 import numpy as np
 from scipy.interpolate import NearestNDInterpolator
+from pyproj import Proj, transform
 
 LOCAL_RUN = True
 
 def main():
 
     config = {
-        "path_to_data": "m:/data/climate/dwd/grids/germany/daily/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/grids/germany/daily/",
+        "path_to_data": "A:/data/climate/dwd/grids/germany/daily/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/grids/germany/daily/",
         #"path_to_output": "m:/data/climate/dwd/csvs/germany/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/csvs/germany/",
-        "path_to_output": "g:/csvs/germany/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/csvs/germany/",
-        "start-y": "1",
+        "path_to_output": "out/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/csvs/germany/",
+        "start-y": "742", #"1",
         "end-y": "-1",
+        "start-x": "133", #"1", 
+        "end-x": "-1", 
         "start-year": "1995",
         "start-month": "1",
         "end-year": "2012",
@@ -62,30 +65,44 @@ def main():
     nrows = 938
     ncols = 720
 
-    def create_regnie_interpolator(nrows, ncols):
+    def read_daily_regnie_ascii_grid(path_to_file):
         "read an ascii grid into a map, without the no-data values"
-        
-        points = np.zeros((ncols*nrows, 2), np.float)
-        values = np.zeros((ncols*nrows), np.int32)
+        with open(path_to_file) as file_:
+            data = np.empty((971, 611), dtype=np.int16)
+            for y in range(971):
+                for x in range(611):
+                    data[y, x] = int(file_.read(4))
+                file_.read(1)
+            return data
+
+    def create_regnie_interpolator(regnie_template, nrows, ncols, wgs84, gk5):
+        "read an ascii grid into a map, without the no-data values"
 
         ydelta_grad = 1.0 / 120.0
         xdelta_grad = 1.0 / 60.0
 
-        i = -1
+        points = []
+        values = []
+
         for row in xrange(0, nrows):
             lat = (55.0 + 10.0 * ydelta_grad) - row * ydelta_grad
             for col in xrange(0, ncols):
-                i += 1
+                if regnie_template[row, col] == -999:
+                    continue
                 lon = (6.0 - 10.0 * xdelta_grad) + col * xdelta_grad
-                points[i, 0] = lat
-                points[i, 1] = lon
-                values[i] = 1000 * row + col
+                r_gk5, h_gk5 = transform(wgs84, gk5, lon, lat)
+                points.append([r_gk5, h_gk5])
+                values.append((row, col))
                 #print "row:", row, "col:", col, "lat:", lat, "lon:", lon, "val:", values[i]
             #print row,
 
         return NearestNDInterpolator(points, values)
 
-    interpol = create_regnie_interpolator(reg_nrows, reg_ncols)
+    wgs84 = Proj(init="epsg:4326")
+    #gk3 = Proj(init="epsg:31467")
+    gk5 = Proj(init="epsg:31469")
+    regnie_template = read_daily_regnie_ascii_grid(config["path_to_data"] + "../daily-regnie/ra1995m/ra950101")
+    regnie_gk5_interpolate = create_regnie_interpolator(regnie_template, reg_nrows, reg_ncols, wgs84, gk5)
 
     files = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
     for f in os.listdir(config["path_to_data"]):
@@ -103,7 +120,6 @@ def main():
         "SIS": "SIS",
         "FF": "FF"
     }
-
 
     def write_files(cache, nrows):
         "write files"
@@ -131,16 +147,7 @@ def main():
             if count % 1000 == 0:
                 print count, "/", no_of_files, "written"
 
-    def read_daily_regnie_ascii_grid(path_to_file):
-        "read an ascii grid into a map, without the no-data values"
-        with open(path_to_file) as file_:
-            data = np.empty((971, 611), dtype=np.int16)
-            for y in range(971):
-                for x in range(611):
-                    data[y, x] = int(file_.read(4))
-                file_.read(1)
-            return data
-
+    
     write_files_threshold = 50 #ys
     for year, months in files.iteritems():
         if year < int(config["start-year"]):
@@ -181,12 +188,13 @@ def main():
                 regnie_np_grids.append(read_daily_regnie_ascii_grid(filename))
 
             #ref_data.shape[1]
-            for y in range(int(config["start-y"]) - 1, ncols if int(config["end-y"]) < 0 else int(config["end-y"])):
+            for y in range(int(config["start-y"]) - 1, nrows if int(config["end-y"]) < 0 else int(config["end-y"])):
                 #print "y: ", y, "->"
                 start_y = time.clock()
                 #print y,
 
-                for x in range(ncols): #ref_data.shape[2]):
+                #for x in range(ncols): #ref_data.shape[2]):
+                for x in range(int(config["start-x"]) - 1, ncols if int(config["end-x"]) < 0 else int(config["end-x"])):
                     #print x,
                    
                     if int(ref_data[0, y, x]) == 9999:
@@ -195,9 +203,8 @@ def main():
                     lat = data["lat"][y, x]
                     lon = data["lon"][y, x]
 
-                    inter = interpol(lat, lon)
-                    rrow = int(inter / 1000)
-                    rcol = inter - (rrow * 1000)
+                    r_gk5, h_gk5 = transform(wgs84, gk5, lon, lat)
+                    rrow, rcol = regnie_gk5_interpolate(r_gk5, h_gk5)
 
                     for i in range(no_of_days):
                         row = [
@@ -210,14 +217,6 @@ def main():
                             str(data["RH"][i, y, x]),
                             str(round(data["SIS"][i, y, x] * 60 * 60 * 24 / 1000000, 4)),
                             str(data["FF"][i, y, x])
-
-                            #str(data["tmin"].variables["temperature"][i][y][x]),
-                            #str(data["tavg"].variables["temperature"][i][y][x]),
-                            #str(data["tmax"].variables["temperature"][i][y][x]),
-                            #str(data["precip"].variables["precipitation"][i][y][x]),
-                            #str(data["RH"].variables["humidity"][i][y][x]),
-                            #str(round(data["SIS"].variables["SIS"][i][y][x] * 3600 / 1000000, 4)),
-                            #str(data["FF"].variables["FF"][i][y][x])
                         ]
                         cache[(y,x)].append(row)
                 
