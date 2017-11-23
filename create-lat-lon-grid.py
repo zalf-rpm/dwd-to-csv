@@ -34,19 +34,10 @@ print sys.path
 from netCDF4 import Dataset
 import numpy as np
 
-USER = "xps15"
-
-PATHS = {
-    "lc": {
-        "path_to_data": "d:/climate/dwd/grids/germany/daily/"    },
-    "xps15": {
-        "path_to_data": "d:/climate/dwd/grids/germany/daily/"
-    }
-}
-
 def main():
 
     config = {
+        "path-to-data": "N:/climate/dwd/grids/germany/daily/"
     }
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
@@ -54,38 +45,53 @@ def main():
             if kkk in config:
                 config[kkk] = vvv
 
-    ds = Dataset(PATHS[USER]["path_to_data"] + "tavg_199501_daymean.nc")
+    ds = Dataset(config["path-to-data"] + "tavg_199501_daymean.nc")
     lats = np.copy(ds.variables["lat"])
     lons = np.copy(ds.variables["lon"])
     temps = np.copy(ds.variables["temperature"][0])
 
-    if True: #False:
-        with open("lat-lon.grid", "w") as _:
-            _.write("NCOLS 720\n")
-            _.write("NROWS 938\n")
-            for y in range(0, 938):
-                line = []
-                for x in range(0, 720):
-                    line.append(str(round(lats[937-y, x], 4)) + "|" + str(round(lons[937-y, x], 4)))
-                _.write(" ".join(line))
-                if y < 937:
-                    _.write("\n")
-                print "wrote line", y
+    lat_lon_grid_file = open("lat-lon.grid", "w")
+    data_no_data_grid_file = open("data-no-data.grid", "w")
+    latlon_to_rowcol_json_file = open("latlon-to-rowcol.json", "w")
+    rowcol_to_latlon_json_file = open("rowcol-to-latlon.json", "w")
 
-    if True:
-        with open("data-no-data.grid", "w") as _:
-            _.write("NCOLS 720\n")
-            _.write("NROWS 938\n")
-            _.write("NODATA_VALUE -\n")
-            for y in range(0, 938):
-                line = []
-                for x in range(0, 720):
-                    line.append("-" if temps[937-y, x] == 9999 else "x")
-                _.write(" ".join(line))
-                if y < 937:
-                    _.write("\n")
-                print "wrote line", y
+    lat_lon_grid_file.write("ncols 720\nnrows 938\nnodata_value ---------------\n")
+    data_no_data_grid_file.write("ncols 720\nnrows 938\nnodata_value -\n")
+    ll_to_rc_json_data = []
+    rc_to_ll_json_data = []
 
+    for row in range(0, 938):
+        ll_line = []
+        dnd_line = []
+        for col in range(0, 720):
+            lat = round(lats[937-row, col], 4)
+            lon = round(lons[937-row, col], 4)
+            
+            is_data = temps[937-row, col] < 1000
+            dnd_line.append("x" if is_data else "-")
+            if is_data:
+                ll_to_rc_json_data.append([[lat, lon], [row, col]])
+                rc_to_ll_json_data.append([[row, col], [lat, lon]])
+                ll_line.append("{:07.4f}|{:07.4f}".format(lat, lon))
+            else:
+                ll_line.append("---------------")
+
+        lat_lon_grid_file.write(" ".join(ll_line))
+        data_no_data_grid_file.write(" ".join(dnd_line))
+        if row < 937:
+            lat_lon_grid_file.write("\n")
+            data_no_data_grid_file.write("\n")
+
+        if row % 10 == 0:
+            print "wrote line", row
+    
+    json.dump(ll_to_rc_json_data, latlon_to_rowcol_json_file)#, indent=2)
+    json.dump(rc_to_ll_json_data, rowcol_to_latlon_json_file)#, indent=2)
+
+    lat_lon_grid_file.close()
+    data_no_data_grid_file.close()
+    latlon_to_rowcol_json_file.close()
+    rowcol_to_latlon_json_file.close()
     ds.close()
 
 main()
