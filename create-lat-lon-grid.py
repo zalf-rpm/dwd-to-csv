@@ -94,4 +94,44 @@ def main():
     rowcol_to_latlon_json_file.close()
     ds.close()
 
-main()
+def rename():
+
+    for dirname in os.listdir("out/"):
+        row = int(dirname.split("-")[2])
+        newname = "row-" + str(row)
+        os.rename("out/" + dirname, "out/" + newname)
+
+def compare_old_new():
+
+    old_path = "N:/climate/dwd/csvs/germany-old/"
+    new_path = "N:/climate/dwd/csvs/germany/"
+
+    old_dirnames = set(os.listdir(old_path))
+    new_dirnames = set(os.listdir(new_path))
+
+    missing = defaultdict(list)
+
+    for old_dirname in sorted(old_dirnames):
+
+        if old_dirname in new_dirnames:
+            old_row = int(old_dirname.split("-")[1])
+            old_filenames = set(os.listdir(old_path + old_dirname))
+            new_filenames = set(os.listdir(new_path + "row-" + str(old_row-1)))
+
+            for old_filename in sorted(old_filenames):
+                if old_filename not in new_filenames:
+                    print "dir:", old_dirname, "/", old_filename, "missing"
+                    missing[old_dirname].append(old_filename)
+
+        else:
+            print "dir:", old_dirname, "missing"
+            missing[old_dirname]
+
+        print "checked:", old_dirname
+
+    with open("missing.json", "w") as _:
+        json.dump(missing, _, indent=2)
+
+compare_old_new()
+#rename()
+#main()
