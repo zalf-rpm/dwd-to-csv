@@ -44,10 +44,10 @@ def main():
         "path_to_data": "A:/data/climate/dwd/grids/germany/daily/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/grids/germany/daily/",
         #"path_to_output": "m:/data/climate/dwd/csvs/germany/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/csvs/germany/",
         "path_to_output": "out/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/csvs/germany/",
-        "start-y": "742", #"1",
+        "start-y": "1",
         "end-y": "-1",
-        "start-x": "133", #"1", 
-        "end-x": "-1", 
+        "start-x": "1", 
+        "end-x": "132", 
         "start-year": "1995",
         "start-month": "1",
         "end-year": "2012",
@@ -127,7 +127,7 @@ def main():
         no_of_files = len(cache)
         count = 0
         for (y, x), rows in cache.iteritems():
-            path_to_outdir = config["path_to_output"] + "row-" + str(nrows - y) + "/"
+            path_to_outdir = config["path_to_output"] + "row-" + str(nrows - y - 1) + "/"
             if not os.path.isdir(path_to_outdir):
                 os.makedirs(path_to_outdir)
 
