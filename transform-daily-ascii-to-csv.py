@@ -34,18 +34,15 @@ print sys.path
 import numpy as np
 from pyproj import Proj, transform
 
-LOCAL_RUN = True
-
 def main():
 
     config = {
-        "path_to_data": "Daily/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/grids/germany/bahareh/Daily/",
-        #"path_to_output": "m:/data/climate/dwd/csvs/germany/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/csvs/germany/",
-        "path_to_output": "out/" if LOCAL_RUN else "/archiv-daten/md/data/climate/dwd/csvs/germany/",
+        "path_to_data": "Daily/",
+        "path_to_output": "out/",
         "start_y": "1",
-        "end_y": "-1",
+        "end_y": "50",
         "start_x": "1", 
-        "end_x": "132", 
+        "end_x": "-1", 
         "start_year": "1990",
         "start_doy": "1",
         "end_year": "2017",
@@ -84,7 +81,7 @@ def main():
         no_of_files = len(cache)
         count = 0
         for (y, x), rows in cache.iteritems():
-            path_to_outdir = config["path_to_output"] + "row-" + str(nrows - y - 1) + "/"
+            path_to_outdir = config["path_to_output"] + "row-" + str(y+1) + "/"
             if not os.path.isdir(path_to_outdir):
                 os.makedirs(path_to_outdir)
 
@@ -105,7 +102,7 @@ def main():
                 print count, "/", no_of_files, "written"
 
     
-    write_days_threshold = 5 #ys
+    write_days_threshold = 367 #ys
     for year in range(1990, 2017+1):
         if year < int(config["start_year"]):
             continue
@@ -114,10 +111,10 @@ def main():
 
         start_of_year_date = date(year, 1, 1)
 
-        start_doys = time.clock()
+        start_year_timer = time.clock()
         cache = defaultdict(list)    
 
-        for doy in range(1, 365 + (1 if year % 4 == 0 else 0)):
+        for doy in range(1, 365 + (1 if year % 4 == 0 else 0) + 1):
             if year == int(config["start_year"]) and doy < int(config["start_doy"]):
                 continue
             if year == int(config["end_year"]) and doy > int(config["end_doy"]):
@@ -134,13 +131,14 @@ def main():
             for y in range(int(config["start_y"]) - 1, nrows if int(config["end_y"]) < 0 else int(config["end_y"])):
                 #print "y: ", y, "->"
                 #start_y = time.clock()
-                print y,
+                if y % 100 == 0:
+                    print y,
 
                 #for x in range(ncols): #ref_data.shape[2]):
                 for x in range(int(config["start_x"]) - 1, ncols if int(config["end_x"]) < 0 else int(config["end_x"])):
                     #print x,
                    
-                    if int(ref_data[y, x]) == 9999:
+                    if int(ref_data[y, x]) == -9999:
                         continue
 
                     r_gk3 = xllcorner + (x*cellsize) + (cellsize / 2)
@@ -166,22 +164,27 @@ def main():
                 #end_y = time.clock()
                 #print y, #str(y) + "|" + str(int(end_y - start_y)) + "s ",
                
-            if doy > int(config["start_doy"]) and y % write_days_threshold == 0:
+            if doy > int(config["start_doy"]) and doy % write_days_threshold == 0:
                 print ""
                 s = time.clock()
                 write_files(cache, nrows)
                 cache = defaultdict(list)
                 e = time.clock()
-                print "wrote year:", year, "in", (e-s), "seconds"
+                print "wrote in year:", year, write_days_threshold, " days in", (e - s), "seconds"
 
             #for dataset in data.values():
             #    dataset.close()
-            #print ""
+            print ""
 
         #write remaining cache items
+        print ""
+        s = time.clock()
         write_files(cache, nrows)
+        cache = defaultdict(list)
+        e = time.clock()
+        print "wrote in year:", year, " remaining data in", (e-s), "seconds"
 
-        end_doys = time.clock()
-        print "running month", month, "took", (end_doys - start_doys), "seconds"
+        end_year_timer = time.clock()
+        print "running", (int(config["end_doy"]) - int(config["start_doy"]) + 1), " doys took", (end_year_timer - start_year_timer), "seconds"
 
 main()
