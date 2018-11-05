@@ -34,7 +34,7 @@ print sys.path
 import numpy as np
 from pyproj import Proj, transform
 
-def main():
+def ascii_to_csv():
 
     config = {
         "path_to_data": "Daily/",
@@ -154,7 +154,7 @@ def main():
                         str(round(data["tmin"][y, x] / 10.0, 1)),
                         str(round((data["tmin"][y, x] + data["tmax"][y, x]) / 2.0 / 10.0, 1)),
                         str(round(data["tmax"][y, x] / 10.0)),
-                        str(data["precip"][y, x]),
+                        str(round(data["precip"][y, x] / 10.0, 1)),
                         str(data["relhumid"][y, x]),
                         str(round(data["globrad"][y, x] / 100.0, 2)),
                         str(round(data["wind"][y, x] / 10.0, 1))
@@ -187,4 +187,84 @@ def main():
         end_year_timer = time.clock()
         print "running", (int(config["end_doy"]) - int(config["start_doy"]) + 1), " doys took", (end_year_timer - start_year_timer), "seconds"
 
-main()
+if __name__ == "#__main__": 
+    ascii_to_csv()
+
+
+def create_latlon_rowcol_files():
+    nrows = 866
+    ncols = 654
+    xllcorner = 3280415
+    yllcorner = 5237501
+    cellsize = 1000
+
+    wgs84 = Proj(init="epsg:4326")
+    gk3 = Proj(init="epsg:31467")
+    gk5 = Proj(init="epsg:31469")
+
+    lat_lon_grid_file = open("lat_lon.grid", "w")
+    data_no_data_grid_file = open("data_no-data.grid", "w")
+    latlon_to_rowcol_json_file = open("latlon_to_rowcol.json", "w")
+    rowcol_to_latlon_json_file = open("rowcol_to_latlon.json", "w")
+    rowcol_to_gk5_rh_json_file = open("rowcol_to_gk5_rh.json", "w")
+    rowcol_to_gk3_rh_json_file = open("rowcol_to_gk3_rh.json", "w")
+
+    path_to_template_file = "A:/data/climate/dwd/grids/germany/daily_from_bahareh/daily/Max_TMP(C)/agrar_nachlieferung_D_TMAX_1990/raster_out_D_TMAX_03_0001.txt"
+    header = ""
+    with open(path_to_template_file, "r") as _:
+        for i in range(6):
+            header = header + _.readline()
+    ds = np.loadtxt(path_to_template_file, skiprows=6, dtype=int)
+
+    lat_lon_grid_file.write(header.replace("-9999", "---------------"))
+    data_no_data_grid_file.write(header.replace("-9999", "0"))
+    ll_to_rc_json_data = []
+    rc_to_ll_json_data = []
+    rc_to_gk5_json_data = []
+    rc_to_gk3_json_data = []
+
+    for row in range(0, nrows):
+        ll_line = []
+        dnd_line = []
+        for col in range(0, ncols):
+            
+            r_gk3 = xllcorner + (col*cellsize) + (cellsize / 2)
+            h_gk3 = yllcorner + ((nrows - row)*cellsize) - (cellsize / 2)
+            lon, lat = transform(gk3, wgs84, r_gk3, h_gk3)
+            r_gk5, h_gk5 = transform(gk3, gk5, r_gk3, h_gk3)
+            
+            is_data = ds[row, col] != -9999
+
+            dnd_line.append("1" if is_data else "0")
+            if is_data:
+                ll_to_rc_json_data.append([[lat, lon], [row, col]])
+                rc_to_ll_json_data.append([[row, col], [lat, lon]])
+                rc_to_gk5_json_data.append([[row, col], [r_gk5, h_gk5]])
+                rc_to_gk3_json_data.append([[row, col], [r_gk3, h_gk3]])
+                ll_line.append("{:07.4f}|{:07.4f}".format(lat, lon))
+            else:
+                ll_line.append("---------------")
+
+        lat_lon_grid_file.write(" ".join(ll_line))
+        data_no_data_grid_file.write(" ".join(dnd_line))
+        if row < 865:
+            lat_lon_grid_file.write("\n")
+            data_no_data_grid_file.write("\n")
+
+        if row % 10 == 0:
+            print "wrote line", row
+
+    json.dump(ll_to_rc_json_data, latlon_to_rowcol_json_file)#, indent=2)
+    json.dump(rc_to_ll_json_data, rowcol_to_latlon_json_file)#, indent=2)
+    json.dump(rc_to_gk5_json_data, rowcol_to_gk5_rh_json_file)#, indent=2)
+    json.dump(rc_to_gk3_json_data, rowcol_to_gk3_rh_json_file)#, indent=2)
+
+    lat_lon_grid_file.close()
+    data_no_data_grid_file.close()
+    latlon_to_rowcol_json_file.close()
+    rowcol_to_latlon_json_file.close()
+    rowcol_to_gk5_rh_json_file.close()
+    rowcol_to_gk3_rh_json_file.close()
+
+if __name__ == "__main__": 
+    create_latlon_rowcol_files()
