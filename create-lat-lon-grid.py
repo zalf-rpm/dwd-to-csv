@@ -37,7 +37,7 @@ import numpy as np
 def main():
 
     config = {
-        "path-to-data": "N:/climate/dwd/grids/germany/daily/"
+        "path-to-data": "A:/data/climate/dwd/grids/germany/daily/"
     }
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
@@ -132,6 +132,15 @@ def compare_old_new():
     with open("missing.json", "w") as _:
         json.dump(missing, _, indent=2)
 
-compare_old_new()
+def fix_numbering():
+
+    folder = "A:/data/climate/dwd/csvs/germany/"
+    for i in range(2, 867):
+        print "renaming", folder + "row-" + str(i), "-->", folder + "row-" + str(i-1)
+        os.rename(folder + "row-" + str(i), folder + "row-" + str(i-1))
+
+
+fix_numbering()
+#compare_old_new()
 #rename()
 #main()
