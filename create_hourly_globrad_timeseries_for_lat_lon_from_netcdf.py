@@ -20,15 +20,11 @@ import os
 import math
 import json
 import csv
-#import copy
 from StringIO import StringIO
 from datetime import date, datetime, timedelta
 from collections import defaultdict
-#import types
 import sys
 print sys.path
-#import zmq
-#print "pyzmq version: ", zmq.pyzmq_version(), " zmq version: ", zmq.zmq_version()
 
 from netCDF4 import Dataset
 import netCDF4
@@ -40,15 +36,13 @@ def main():
 
     config = {
         "path_to_data": "A:/data/climate/dwd/grids/germany/", #hourly/",
-        "path_to_output": "A:/data/climate/dwd/grids/germany/",
-        "start": 1,
-        "end": 218
+        "path_to_output": "A:/data/climate/dwd/grids/germany/"
     }
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
-            kkk, vvv = arg.split("=")
-            if kkk in config:
-                config[kkk] = int(vvv)
+            k, v = arg.split("=")
+            if k in config:
+                config[k] = v
 
     path_to_data = config["path_to_data"]
     path_to_output = config["path_to_output"]
@@ -70,7 +64,7 @@ def main():
     x = 522 #lon = 12.9793
     y = 687 #lat = 53.1685
 
-    files = ["SIS_199501.nc.gz"] #os.listdir(path_to_data)
+    files = os.listdir(path_to_data) #["SIS_199501.nc.gz"] #os.listdir(path_to_data)
     files.sort()
     for f in files: #[config["start"]-1:config["end"]]:
 
@@ -83,14 +77,15 @@ def main():
                 for i in xrange(len_time):
                     rows.append([
                         datetime.strptime(str(nc.variables["datum"][i])[:10], "%Y%m%d%H").strftime("%Y-%m-%d %H:00"), 
-                        float(nc.variables["SIS"][i, y, x])
+                        float(nc.variables["SIS"][i, y, x]),
+                        round(float(nc.variables["SIS"][i, y, x]*0.0036), 5)
                     ])
 
                 if not os.path.isfile(path_to_outfile):
                     with open(path_to_outfile, "wb") as _:
                         writer = csv.writer(_, delimiter=",")
-                        writer.writerow(["iso-date", "globrad"])
-                        writer.writerow(["[]", "[W m-2]"])
+                        writer.writerow(["iso-date", "globrad", "globrad"])
+                        writer.writerow(["[]", "[Wh m-2]", "[MJ m-2]"])
 
                 with open(path_to_outfile, "ab") as _:
                     writer = csv.writer(_, delimiter=",")
