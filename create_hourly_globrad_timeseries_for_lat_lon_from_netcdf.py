@@ -68,6 +68,7 @@ def main():
     files.sort()
     for f in files: #[config["start"]-1:config["end"]]:
 
+        print f
         with gzip.open(path_to_data + f) as gz:
             with netCDF4.Dataset('dummy', mode='r', memory=gz.read()) as nc:
 
