@@ -52,16 +52,31 @@ def transform_netcdfs():
             if kkk in config:
                 config[kkk] = vvv
     
+    elem_to_varname = {
+        "tasmax": "tasmaxAdjustInterp",
+        "tas": "tasAdjustInterp",
+        "tasmin": "tasminAdjustInterp",
+        "pr": "prAdjustInterp",
+        "hurs": "hursAdjustInterp",
+        "rsds": "rsdsAdjustInterp",
+        "sfcWind": "sfcWindAdjustInterp"
+    }
+
     files = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
     for d1 in os.listdir(config["path_to_data"]):
         path_1 = config["path_to_data"] + d1
+        if d1.startswith("-"):
+            continue
+
         if os.path.isdir(path_1):
             gcm, scen, _1, rcm, _v = str(d1).split("_")
 
+            elems = set(elem_to_varname.keys())
             for d2 in os.listdir(path_1):
                 path_2 = path_1 + "/" + d2
                 if os.path.isdir(path_2):
                     elem = str(d2)
+                    elems.remove(elem)
 
                     for f in os.listdir(path_2):
                         path_3 = path_2 + "/" + f
@@ -73,16 +88,8 @@ def transform_netcdfs():
                             files[gcm][rcm][scen][elem].append([start_year, end_year, path_3])
                             files[gcm][rcm][scen][elem].sort()
 
-
-    elem_to_varname = {
-        "tasmax": "tasmaxAdjustInterp",
-        "tas": "tasAdjustInterp",
-        "tasmin": "tasminAdjustInterp",
-        "pr": "prAdjustInterp",
-        "hurs": "hursAdjustInterp",
-        "rsds": "rsdsAdjustInterp",
-        "sfcWind": "sfcWindAdjustInterp"
-    }
+            if len(elems) > 0:
+                print(path_1, str(elems), "missing")
 
 
     def write_files(cache, nrows, gcm, rcm, scen):
@@ -141,7 +148,7 @@ def transform_netcdfs():
         return NearestNDInterpolator(points, values)
 
 
-    write_rows_threshold = 5
+    write_rows_threshold = 1
     for gcm, rest1 in files.items():
         if config["gcm"] and gcm != config["gcm"]:
             continue
@@ -246,17 +253,18 @@ def transform_netcdfs():
                             
                             for i in range(no_of_days):
                                 if interpol_rsds:
-                                    #rsds = data["rsds"][i, closest_row, closest_col]
                                     rsds = data["rsds"][i, closest_row, closest_col]
                                 else:
-                                    #data["rsds"][i, y, x]
-                                    data["rsds"][i, y, x]
+                                    rsds = data["rsds"][i, y, x]
+                                pr = round(data["pr"][i, y, x] * 60*60*24, 1)
+                                if pr > 100:
+                                    print("gcm:", gcm, "rcm:", rcm, "scen:", scen, "tri:", time_range_index, "y:", y, "x:", x, "pr:", pr, flush=True)
                                 row = [
                                     (date(start_year, 1, 1)+timedelta(days=i)).strftime("%Y-%m-%d"),
                                     str(round(data["tasmin"][i, y, x] - 273.15, 2)),
                                     str(round(data["tas"][i, y, x] - 273.15, 2)),
                                     str(round(data["tasmax"][i, y, x] - 273.15, 2)),
-                                    str(round(data["pr"][i, y, x] * 60*60*24, 1)),
+                                    str(pr),
                                     str(round(data["hurs"][i, y, x], 1)),
                                     str(round(rsds * 60 * 60 * 24 / 1000000, 4)),
                                     str(round(data["sfcWind"][i, y, x], 1))
