@@ -39,7 +39,7 @@ def main():
         "path_to_append_data": "/beegfs/common/data/climate/dwd/grids/agrar_nachlieferung_y_2018_2019",
         #"path_to_append_data": "C:/Users/berg.ZALF-AD/Downloads/agrar_nachlieferung_y_2018_2019",
         "start_row": "1",
-        "end_row": "1", #None,
+        "end_row": None,
         "start_col": "1", 
         "end_col": None, 
         "start_year": "2019",
