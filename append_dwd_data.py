@@ -30,11 +30,11 @@ import time
 
 def main():
 
-    monica_csv = False
+    monica_csv = True
 
     config = {
-        #"path_to_dwd_data": "/beegfs/common/data/climate/dwd/csvs/germany",
-        "path_to_dwd_data": "/beegfs/common/data/climate/dwd/csvs/germany_ubn_1901-2018_unzipped",
+        "path_to_dwd_data": "/beegfs/common/data/climate/dwd/csvs/germany",
+        #"path_to_dwd_data": "/beegfs/common/data/climate/dwd/csvs/germany_ubn_1901-2018_unzipped",
         #"path_to_dwd_data": "C:/Users/berg.ZALF-AD/Downloads",
         "path_to_append_data": "/beegfs/common/data/climate/dwd/grids/agrar_nachlieferung_y_2018_2019",
         #"path_to_append_data": "C:/Users/berg.ZALF-AD/Downloads/agrar_nachlieferung_y_2018_2019",
@@ -42,7 +42,7 @@ def main():
         "end_row": None,
         "start_col": "1", 
         "end_col": None, 
-        "start_year": "2019",
+        "start_year": "2018",
         "start_day": "1",
         "end_year": "2019",
         "end_day": None
