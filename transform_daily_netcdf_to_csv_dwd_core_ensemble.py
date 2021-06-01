@@ -28,6 +28,7 @@ import os
 from pyproj import CRS, Transformer
 import time
 from scipy.interpolate import NearestNDInterpolator
+import shutil
 import sys
 
 LOCAL_RUN = True
@@ -38,6 +39,7 @@ def transform_netcdfs():
         "basepath_to_data": "/beegfs/common/data/climate/dwd_core_ensemble/",
         "netcdfs": "download/",
         "csvs": "csv/",
+        "scratch": "/scratch/rpm/klimertrag/",
         "gcm": None,
         "rcm": None,
         "scen": None,
@@ -47,8 +49,8 @@ def transform_netcdfs():
         "end_y": None,
         "start_x": "1", 
         "end_x": None, 
-        "start_year": None,
-        "end_year": None,
+        "start_year": None #,
+        #"end_year": None,
     }
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
@@ -57,6 +59,7 @@ def transform_netcdfs():
                 config[kkk] = vvv
     
     path_to_netcdfs = config["basepath_to_data"] + config["netcdfs"]
+    path_to_local_csvs = config["scratch"]
     path_to_csvs = config["basepath_to_data"] + config["csvs"]
 
     elem_to_varname = {
@@ -106,7 +109,7 @@ def transform_netcdfs():
         no_of_files = len(cache)
         count = 0
         for (y, x), rows in cache.items():
-            path_to_outdir = path_to_csvs + gcm + "/" + rcm + "/" + scen + "/" + ensmem + "/" + version + "/" + "row-" + str(nrows - y - 1) + "/"
+            path_to_outdir = path_to_local_csvs + gcm + "/" + rcm + "/" + scen + "/" + ensmem + "/" + version + "/" + "row-" + str(nrows - y - 1) + "/"
             if not os.path.isdir(path_to_outdir):
                 os.makedirs(path_to_outdir)
 
@@ -343,6 +346,16 @@ def transform_netcdfs():
 
                             for ds in datasets:
                                 ds.close()
+
+    for d in os.listdir(path_to_local_csvs):
+        copy_from_dir = path_to_local_csvs + d
+        print("copying", copy_from_dir, "to", path_to_csvs, flush=True)
+        shutil.copytree(copy_from_dir, path_to_csvs)
+    
+    for d in os.listdir(path_to_local_csvs):
+        rm_dir = path_to_local_csvs + d
+        print("removing", rm_dir, flush=True)
+        shutil.rmtree(rm_dir)
 
 
 if __name__ == "__main__":
