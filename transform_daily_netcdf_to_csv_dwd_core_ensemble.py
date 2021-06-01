@@ -96,7 +96,7 @@ def transform_netcdfs():
                             starty, endy = incl_time_range[:-3].split("-")
                             start_year = int(starty[:4])
                             end_year = int(endy[:4])
-                            files[gcm][rcm][scen][ensemble_member][version][elem].append([start_year, end_year, path_3])
+                            files[gcm][rcm][scen][ensemble_member][version][elem].append([start_year, end_year, path_3, f])
                             files[gcm][rcm][scen][ensemble_member][version][elem].sort()
 
             if len(elems) > 0:
@@ -159,6 +159,11 @@ def transform_netcdfs():
 
         return NearestNDInterpolator(points, values)
 
+    # delete left over dirs from previous (possibly canceled run)
+    for d in os.listdir(path_to_local_csvs):
+        rm_dir = path_to_local_csvs + d
+        shutil.rmtree(rm_dir)
+        print("removed", rm_dir, flush=True)
 
     write_rows_threshold = 1
     for gcm, rest1 in files.items():
@@ -190,7 +195,7 @@ def transform_netcdfs():
                             end_years = set()
                             #find smallest common denominator for start/end year
                             for elem, rest6 in rest5.items():
-                                starty, endy, _ = rest6[time_range_index]
+                                starty, endy, _, _2 = rest6[time_range_index]
                                 start_years.add(starty)
                                 end_years.add(endy)
                             
@@ -206,11 +211,18 @@ def transform_netcdfs():
                             ref_elem = "tas"
                             rsds_interpolate = None
                             datasets = []
+                            local_temp_dir_path = config["scratch"] + "tmp/"
+                            os.makedirs(local_temp_dir_path, exist_ok=True)
                             #open all files for the first time range
                             for elem, rest6 in rest5.items():
-                                _, _, file_path = rest6[time_range_index]
-
-                                ds = Dataset(file_path)
+                                _, _, file_path, f = rest6[time_range_index]
+                                
+                                # copy the netcdf to the local ssds 
+                                local_file_path = local_temp_dir_path + f    
+                                shutil.copyfile(file_path, local_file_path)
+                                print("copied", file_path, "to", local_file_path, flush=True)
+                                
+                                ds = Dataset(local_file_path) #file_path)
                                 datasets.append(ds)
 
                                 data[elem] = ds.variables[elem_to_varname[elem]]
@@ -347,15 +359,21 @@ def transform_netcdfs():
                             for ds in datasets:
                                 ds.close()
 
+                            # remove the copied netcdf files from the local ssds
+                            for f in os.listdir(local_temp_dir_path):
+                                os.remove(f)
+                                print("deleted", local_temp_dir_path + f, flush=True)
+
+
     for d in os.listdir(path_to_local_csvs):
         copy_from_dir = path_to_local_csvs + d
-        print("copying", copy_from_dir, "to", path_to_csvs, flush=True)
         shutil.copytree(copy_from_dir, path_to_csvs)
+        print("copied", copy_from_dir, "to", path_to_csvs, flush=True)
     
     for d in os.listdir(path_to_local_csvs):
         rm_dir = path_to_local_csvs + d
-        print("removing", rm_dir, flush=True)
         shutil.rmtree(rm_dir)
+        print("removed", rm_dir, flush=True)
 
 
 if __name__ == "__main__":
