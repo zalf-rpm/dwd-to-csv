@@ -160,10 +160,11 @@ def transform_netcdfs():
         return NearestNDInterpolator(points, values)
 
     # delete left over dirs from previous (possibly canceled run)
-    for d in os.listdir(path_to_local_csvs):
-        rm_dir = path_to_local_csvs + d
-        shutil.rmtree(rm_dir)
-        print("removed", rm_dir, flush=True)
+    if os.path.exists(path_to_local_csvs):
+        for d in os.listdir(path_to_local_csvs):
+            rm_dir = path_to_local_csvs + d
+            shutil.rmtree(rm_dir)
+            print("removed", rm_dir, flush=True)
 
     write_rows_threshold = 1
     for gcm, rest1 in files.items():
@@ -360,20 +361,21 @@ def transform_netcdfs():
                                 ds.close()
 
                             # remove the copied netcdf files from the local ssds
-                            for f in os.listdir(local_temp_dir_path):
-                                os.remove(f)
-                                print("deleted", local_temp_dir_path + f, flush=True)
+                            if os.path.exists(local_temp_dir_path):
+                                for f in os.listdir(local_temp_dir_path):
+                                    os.remove(local_temp_dir_path + f)
+                                    print("deleted", local_temp_dir_path + f, flush=True)
 
-
-    for d in os.listdir(path_to_local_csvs):
-        copy_from_dir = path_to_local_csvs + d
-        shutil.copytree(copy_from_dir, path_to_csvs)
-        print("copied", copy_from_dir, "to", path_to_csvs, flush=True)
-    
-    for d in os.listdir(path_to_local_csvs):
-        rm_dir = path_to_local_csvs + d
-        shutil.rmtree(rm_dir)
-        print("removed", rm_dir, flush=True)
+    if os.path.exists(path_to_local_csvs):
+        for d in os.listdir(path_to_local_csvs):
+            copy_from_dir = path_to_local_csvs + d
+            shutil.copytree(copy_from_dir, path_to_csvs)
+            print("copied", copy_from_dir, "to", path_to_csvs, flush=True)
+        
+        for d in os.listdir(path_to_local_csvs):
+            rm_dir = path_to_local_csvs + d
+            shutil.rmtree(rm_dir)
+            print("removed", rm_dir, flush=True)
 
 
 if __name__ == "__main__":
