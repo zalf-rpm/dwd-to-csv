@@ -38,8 +38,9 @@ def transform_netcdfs():
     config = {
         "basepath_to_data": "/beegfs/common/data/climate/dwd_core_ensemble/",
         "netcdfs": "download/",
-        "csvs": "csv/",
+        "csvs": "csvs/",
         "scratch": "/scratch/rpm/klimertrag/",
+        "restart": "false",
         "gcm": None,
         "rcm": None,
         "scen": None,
@@ -61,6 +62,8 @@ def transform_netcdfs():
     path_to_netcdfs = config["basepath_to_data"] + config["netcdfs"]
     path_to_local_csvs = config["scratch"]
     path_to_csvs = config["basepath_to_data"] + config["csvs"]
+    path_to_partial_csvs = config["basepath_to_data"] + "part_" + config["csvs"] 
+    restart = config["restart"] == "true"
 
     elem_to_varname = {
         "tasmax": "tasmaxAdjustInterp",
@@ -134,7 +137,8 @@ def transform_netcdfs():
     #gk5 = CRS.from_epsg(31469)
     etrs89_z32n = CRS.from_epsg(25832)
     etrs89_lcc = CRS.from_epsg(3034)
-    transformer = Transformer.from_crs(wgs84, etrs89_z32n, always_xy=True) 
+    #transformer = Transformer.from_crs(wgs84, etrs89_z32n, always_xy=True) 
+    transformer = Transformer.from_crs(wgs84, etrs89_lcc, always_xy=True) 
 
     def create_elem_interpolator(elem_arr, lat_arr, lon_arr):
         "read an ascii grid into a map, without the no-data values"
@@ -165,6 +169,15 @@ def transform_netcdfs():
             rm_dir = path_to_local_csvs + d
             shutil.rmtree(rm_dir)
             print("removed", rm_dir, flush=True)
+
+    if restart:
+        src_dir = f'{path_to_partial_csvs}{config["gcm"]}/{config["rcm"]}/{config["scen"]}/{config["ensmem"]}/{config["version"]}'
+        if os.path.exists(src_dir):
+            dst_dir = f'{path_to_local_csvs}{config["gcm"]}/{config["rcm"]}/{config["scen"]}/{config["ensmem"]}/{config["version"]}/'
+            if not os.path.exists(dst_dir):
+                os.makedirs(dst_dir)
+            shutil.copytree(src_dir, dst_dir, dirs_exist_ok=True)
+            print("copied", src_dir, "to", dst_dir, flush=True)
 
     write_rows_threshold = 1
     for gcm, rest1 in files.items():
@@ -238,7 +251,7 @@ def transform_netcdfs():
                                 if elem == "rsds":
                                     data["lat"] = ds.variables["lat"]
                                     data["lon"] = ds.variables["lon"]
-                                    rsds_interpolate = create_elem_interpolator(data["rsds"][400], data["lat"], data["lon"])
+                                    rsds_interpolate = create_elem_interpolator(data["rsds"][300], data["lat"], data["lon"])
 
 
                             no_of_days = base_no_of_days
@@ -309,13 +322,41 @@ def transform_netcdfs():
                                         ]
                                         cache[(y,x)].append(row)
 
+                                        # is this a 365 year?
+                                        if (gcm[:3] == "CCC" and rcm[:3] == "CLM") \
+                                            or (gcm[:3] == "ICH" and rcm[:3] == "SMH") \
+                                                or (gcm[:3] == "MIR" and rcm[:3] == "CLM"):
+                                            days_in_month = calendar.monthrange(cur_date.year, cur_date.month)[1]
+
+                                            # if this is a leap year, create the 29th day
+                                            if cur_date.month == 2 and days_in_month == 29:
+                                                sum_tmin += round(data["tasmin"][i + time_offsets["tasmin"], y, x] - 273.15, 2)
+                                                sum_tavg += round(data["tas"][i + time_offsets["tas"], y, x] - 273.15, 2)
+                                                sum_tmax += round(data["tasmax"][i + time_offsets["tasmax"], y, x] - 273.15, 2)
+
+                                                # its the last day of feburary in a 365 day leap year - add the 29th day
+                                                if cur_date.day == 28:
+                                                    cur_date = cur_date + timedelta(days=1)
+                                                    row = [
+                                                        cur_date.strftime("%Y-%m-%d"),
+                                                        str(round(sum_tmin / 30.0, 2)), 
+                                                        str(round(sum_tavg / 30.0, 2)), 
+                                                        str(round(sum_tmax / 30.0, 2)),
+                                                        str(0.0), # no precip on day 31, doesn't change the monthly precip balance
+                                                        str(round(data["hurs"][i + time_offsets["hurs"], y, x], 1)), #% -> %
+                                                        str(round(rsds * 60 * 60 * 24 / 1000000, 4)), #W m-2 -> MJ m-2   (J = W s)
+                                                        str(round(data["sfcWind"][i + time_offsets["sfcWind"], y, x], 1))
+                                                    ]
+                                                    cache[(y,x)].append(row)
+                                                    sum_tmin = sum_tavg = sum_tmax = 0
+
                                         # is this a 360 year?
                                         if gcm[:4] == "MOHC":
                                             days_in_month = calendar.monthrange(cur_date.year, cur_date.month)[1]
                                             
                                             # if this is a febuary, skip the 29th and 30th data
                                             if cur_date.month == 2 and cur_date.day == days_in_month: 
-                                                i += 2
+                                                i += 2 if days_in_month == 29 else 3
                                                 continue
 
                                             if cur_date.month != 2 and days_in_month == 31:
@@ -369,7 +410,7 @@ def transform_netcdfs():
     if os.path.exists(path_to_local_csvs):
         for d in os.listdir(path_to_local_csvs):
             copy_from_dir = path_to_local_csvs + d
-            shutil.copytree(copy_from_dir, path_to_csvs)
+            shutil.copytree(copy_from_dir, path_to_csvs, dirs_exist_ok=True)
             print("copied", copy_from_dir, "to", path_to_csvs, flush=True)
         
         for d in os.listdir(path_to_local_csvs):
