@@ -108,3 +108,5 @@ rowcol_to_gk3_rh.json
 rowcol_to_gk5_rh.json
 rowcol_to_latlon.json
 latlon_to_rowcol.json
+.vscode/settings.json
+.vscode/launch.json

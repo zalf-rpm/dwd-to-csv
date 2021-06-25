@@ -37,9 +37,11 @@ def transform_netcdfs():
 
     config = {
         "basepath_to_data": "/beegfs/common/data/climate/dwd_core_ensemble/",
+        #"basepath_to_data": "/run/user/1000/gvfs/sftp:host=login01.cluster.zalf.de,user=rpm/beegfs/common/data/climate/dwd_core_ensemble/",
         "netcdfs": "download/",
         "csvs": "csvs/",
         "scratch": "/scratch/rpm/klimertrag/",
+        #"scratch": "scratch/rpm/klimertrag/",
         "restart": "false",
         "gcm": None,
         "rcm": None,
@@ -50,7 +52,7 @@ def transform_netcdfs():
         "end_y": None,
         "start_x": "1", 
         "end_x": None, 
-        "start_year": None #,
+        "start_year": None, #None #,
         #"end_year": None,
     }
     if len(sys.argv) > 1:
@@ -85,13 +87,17 @@ def transform_netcdfs():
             gcm, scen, _1, rcm, version = str(d1).split("_")
 
             elems = set(elem_to_varname.keys())
-            for d2 in os.listdir(path_1):
+            dirs_1 = os.listdir(path_1)
+            #dirs_1.sort()
+            for d2 in dirs_1:
                 path_2 = path_1 + "/" + d2
                 if os.path.isdir(path_2):
                     elem = str(d2)
                     elems.remove(elem)
 
-                    for f in os.listdir(path_2):
+                    dirs_2 = os.listdir(path_2)
+                    #dirs_2.sort()
+                    for f in dirs_2:
                         path_3 = path_2 + "/" + f
                         if os.path.isfile(path_3):
                             #print("path_3:", path_3)
@@ -257,11 +263,12 @@ def transform_netcdfs():
                             no_of_days = base_no_of_days
                             # set the time offsets for the grids, especially rsds
                             for elem, offset in time_offsets.items():
-                                offset_ = abs(offset - base_time_offset)
-                                nods = time_shapes[elem] - offset_
-                                if nods < no_of_days:
-                                    no_of_days = nods
-                                time_offsets[elem] = offset_
+                                time_offsets[elem] = 0
+                                #offset_ = abs(offset - base_time_offset)
+                                #nods = time_shapes[elem] - offset_
+                                #if nods < no_of_days:
+                                #    no_of_days = nods
+                                #time_offsets[elem] = offset_
 
 
                             ref_data = data[ref_elem][0] 
@@ -310,13 +317,18 @@ def transform_netcdfs():
                                         else:
                                             rsds = data["rsds"][i + time_offsets["rsds"], y, x]
 
+                                        hurs = data["hurs"][i + time_offsets["hurs"], y, x]
+                                        # make one exception for the last day of last time slice of the hurs grid in MPI/UHO RCP85, because day 2190 is all nodata
+                                        if i == 2190 and start_year == 2095 and gcm[:3] == "MPI" and rcm[:3] == "UHO" and scen[-2:] == "85":
+                                            hurs = data["hurs"][i - 1 + time_offsets["hurs"], y, x]
+
                                         row = [
                                             cur_date.strftime("%Y-%m-%d"),
                                             str(round(data["tasmin"][i + time_offsets["tasmin"], y, x] - 273.15, 2)), #K -> °C
                                             str(round(data["tas"][i + time_offsets["tas"], y, x] - 273.15, 2)), #K -> °C
                                             str(round(data["tasmax"][i + time_offsets["tasmax"], y, x] - 273.15, 2)), #K -> °C
                                             str(round(data["pr"][i + time_offsets["pr"], y, x] * 60 * 60 * 24, 2)), #kg m-2 s-1 -> mm d-1
-                                            str(round(data["hurs"][i + time_offsets["hurs"], y, x], 1)), #% -> %
+                                            str(round(hurs, 1)), #% -> %
                                             str(round(rsds * 60 * 60 * 24 / 1000000, 4)), #W m-2 -> MJ m-2   (J = W s)
                                             str(round(data["sfcWind"][i + time_offsets["sfcWind"], y, x], 1))
                                         ]
@@ -410,8 +422,9 @@ def transform_netcdfs():
     if os.path.exists(path_to_local_csvs):
         for d in os.listdir(path_to_local_csvs):
             copy_from_dir = path_to_local_csvs + d
-            shutil.copytree(copy_from_dir, path_to_csvs, dirs_exist_ok=True)
-            print("copied", copy_from_dir, "to", path_to_csvs, flush=True)
+            copy_to_dir = path_to_csvs + d
+            shutil.copytree(copy_from_dir, copy_to_dir, dirs_exist_ok=True)
+            print("copied", copy_from_dir, "to", copy_to_dir, flush=True)
         
         for d in os.listdir(path_to_local_csvs):
             rm_dir = path_to_local_csvs + d
