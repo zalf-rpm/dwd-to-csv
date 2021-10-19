@@ -43,8 +43,8 @@ def transform_netcdfs():
         "scratch": "/scratch/rpm/klimertrag/",
         #"scratch": "scratch/rpm/klimertrag/",
         "restart": "false",
-        "gcm": None,
-        "rcm": None,
+        "gcm": None, #"MOHC-HadGEM2-ES", #None,
+        "rcm": None, #"GERICS-REMO2015", #"UHOH-WRF361H", #None,
         "scen": None,
         "ensmem": None, #ensemble member = r<run_id>i1p1
         "version": None,
@@ -52,7 +52,7 @@ def transform_netcdfs():
         "end_y": None,
         "start_x": "1", 
         "end_x": None, 
-        "start_year": None, #None #,
+        "start_year": None #,
         #"end_year": None,
     }
     if len(sys.argv) > 1:
@@ -317,16 +317,25 @@ def transform_netcdfs():
                                         else:
                                             rsds = data["rsds"][i + time_offsets["rsds"], y, x]
 
-                                        hurs = data["hurs"][i + time_offsets["hurs"], y, x]
                                         # make one exception for the last day of last time slice of the hurs grid in MPI/UHO RCP85, because day 2190 is all nodata
-                                        if i == 2190 and start_year == 2095 and gcm[:3] == "MPI" and rcm[:3] == "UHO" and scen[-2:] == "85":
+                                        hurs = data["hurs"][i + time_offsets["hurs"], y, x]
+                                        if i == no_of_days - 1 and (
+                                            (start_year == 2095 and gcm[:3] == "MPI" and rcm[:3] == "UHO" and scen[-2:] == "85") or 
+                                            (start_year == 2095 and gcm[:3] == "MOH" and rcm[:3] == "UHO" and scen[-2:] == "85") or
+                                            (start_year == 2095 and gcm[:3] == "MPI" and rcm[:3] == "UHO" and scen[-2:] == "26")):
                                             hurs = data["hurs"][i - 1 + time_offsets["hurs"], y, x]
+                                        
+                                        # in UHO/GER at day 1080 starting year 2070 some upper parts of germany are nodata in tasmax
+                                        tasmax = data["tasmax"][i + time_offsets["tasmax"], y, x]
+                                        #if i == 1080 and start_year == 2070 and gcm[:3] == "MOH" and rcm[:3] == "GER" and scen[-2:] == "85":
+                                        if tasmax is np.ma.masked:
+                                            tasmax = data["tasmax"][i - 1 + time_offsets["tasmax"], y, x]
 
                                         row = [
                                             cur_date.strftime("%Y-%m-%d"),
                                             str(round(data["tasmin"][i + time_offsets["tasmin"], y, x] - 273.15, 2)), #K -> °C
                                             str(round(data["tas"][i + time_offsets["tas"], y, x] - 273.15, 2)), #K -> °C
-                                            str(round(data["tasmax"][i + time_offsets["tasmax"], y, x] - 273.15, 2)), #K -> °C
+                                            str(round(tasmax - 273.15, 2)), #K -> °C
                                             str(round(data["pr"][i + time_offsets["pr"], y, x] * 60 * 60 * 24, 2)), #kg m-2 s-1 -> mm d-1
                                             str(round(hurs, 1)), #% -> %
                                             str(round(rsds * 60 * 60 * 24 / 1000000, 4)), #W m-2 -> MJ m-2   (J = W s)
@@ -336,8 +345,9 @@ def transform_netcdfs():
 
                                         # is this a 365 year?
                                         if (gcm[:3] == "CCC" and rcm[:3] == "CLM") \
-                                            or (gcm[:3] == "ICH" and rcm[:3] == "SMH") \
-                                                or (gcm[:3] == "MIR" and rcm[:3] == "CLM"):
+                                            or gcm[:3] == "IPS" \
+                                                or (gcm[:3] == "ICH" and rcm[:3] == "SMH") \
+                                                    or (gcm[:3] == "MIR" and rcm[:3] == "CLM"):
                                             days_in_month = calendar.monthrange(cur_date.year, cur_date.month)[1]
 
                                             # if this is a leap year, create the 29th day
@@ -372,9 +382,21 @@ def transform_netcdfs():
                                                 continue
 
                                             if cur_date.month != 2 and days_in_month == 31:
+
+                                                # make one exception for the last day of last time slice of the hurs grid in MPI/UHO RCP85, because day 2190 is all nodata
+                                                hurs_2 = data["hurs"][i + time_offsets["hurs"], y, x]
+                                                if i == no_of_days - 1 and start_year == 2095 and rcm[:3] == "UHO" and scen[-2:] == "85":
+                                                    hurs_2 = data["hurs"][i - 1 + time_offsets["hurs"], y, x]
+                                                
+                                                # in UHO/GER at day 1080 starting year 2070 some upper parts of germany are nodata in tasmax
+                                                tasmax_2 = data["tasmax"][i + time_offsets["tasmax"], y, x]
+                                                #if i == 1080 and start_year == 2070 and rcm[:3] == "GER" and scen[-2:] == "85":
+                                                if tasmax_2 is np.ma.masked:
+                                                    tasmax_2 = data["tasmax"][i - 1 + time_offsets["tasmax"], y, x]
+
                                                 sum_tmin += round(data["tasmin"][i + time_offsets["tasmin"], y, x] - 273.15, 2)
                                                 sum_tavg += round(data["tas"][i + time_offsets["tas"], y, x] - 273.15, 2)
-                                                sum_tmax += round(data["tasmax"][i + time_offsets["tasmax"], y, x] - 273.15, 2)
+                                                sum_tmax += round(tasmax_2 - 273.15, 2)
 
                                                 # it's a 31 day month, so we have to add another day
                                                 if cur_date.day == 30:
@@ -385,7 +407,7 @@ def transform_netcdfs():
                                                         str(round(sum_tavg / 30.0, 2)), 
                                                         str(round(sum_tmax / 30.0, 2)),
                                                         str(0.0), # no precip on day 31, doesn't change the monthly precip balance
-                                                        str(round(data["hurs"][i + time_offsets["hurs"], y, x], 1)), #% -> %
+                                                        str(round(hurs_2, 1)), #% -> %
                                                         str(round(rsds * 60 * 60 * 24 / 1000000, 4)), #W m-2 -> MJ m-2   (J = W s)
                                                         str(round(data["sfcWind"][i + time_offsets["sfcWind"], y, x], 1))
                                                     ]
